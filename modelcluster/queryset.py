@@ -1,8 +1,22 @@
 from __future__ import unicode_literals
 
 from django.db.models import Model
+from django.utils.functional import cached_property
 
 from modelcluster.utils import sort_by_fields
+
+
+class Results(object):
+    pass
+
+
+class BaseResults(Results):
+    def __init__(self, results):
+        self.results = results
+
+    def __iter__(self):
+        return iter(self.results)
+
 
 # Constructor for test functions that determine whether an object passes some boolean condition
 def test_exact(model, attribute_name, value):
@@ -27,10 +41,20 @@ def test_exact(model, attribute_name, value):
         # just a plain Python value = do a normal equality check
         return lambda obj: getattr(obj, attribute_name) == typed_value
 
+
 class FakeQuerySet(object):
     def __init__(self, model, results):
         self.model = model
-        self.results = results
+
+        if isinstance(results, Results):
+            self._results = results
+        else:
+            self._results = BaseResults(results)
+
+    @cached_property
+    def results(self):
+        # Backwards compatibility
+        return list(self._results)
 
     def all(self):
         return self
