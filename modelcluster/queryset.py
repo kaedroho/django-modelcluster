@@ -18,6 +18,34 @@ class BaseResults(Results):
         return iter(self.results)
 
 
+class FilteredResults(Results):
+    def __init__(self, parent, model, filters):
+        self.parent = parent
+        self.model = model
+        self._filters = filters
+
+    @cached_property
+    def filters(self):
+        filters = []  # a list of test functions; objects must pass all tests to be included
+            # in the filtered list
+        for key, val in self._filters.items():
+            key_clauses = key.split('__')
+            if len(key_clauses) != 1:
+                raise NotImplementedError("Complex filters with double-underscore clauses are not implemented yet")
+
+            filters.append(test_exact(self.model, key_clauses[0], val))
+
+        return filters
+
+    def match(self, result):
+        return all([test(result) for test in self.filters])
+
+    def __iter__(self):
+        for result in self.parent:
+            if self.match(result):
+                yield result
+
+
 # Constructor for test functions that determine whether an object passes some boolean condition
 def test_exact(model, attribute_name, value):
     field = model._meta.get_field(attribute_name)
@@ -53,28 +81,13 @@ class FakeQuerySet(object):
 
     @cached_property
     def results(self):
-        # Backwards compatibility
         return list(self._results)
 
     def all(self):
         return self
 
     def filter(self, **kwargs):
-        filters = []  # a list of test functions; objects must pass all tests to be included
-            # in the filtered list
-        for key, val in kwargs.items():
-            key_clauses = key.split('__')
-            if len(key_clauses) != 1:
-                raise NotImplementedError("Complex filters with double-underscore clauses are not implemented yet")
-
-            filters.append(test_exact(self.model, key_clauses[0], val))
-
-        filtered_results = [
-            obj for obj in self.results
-            if all([test(obj) for test in filters])
-        ]
-
-        return FakeQuerySet(self.model, filtered_results)
+        return FakeQuerySet(self.model, FilteredResults(self._results, self.model, kwargs))
 
     def get(self, **kwargs):
         results = self.filter(**kwargs)
