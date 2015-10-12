@@ -46,6 +46,17 @@ class FilteredResults(Results):
                 yield result
 
 
+class SortedResults(Results):
+    def __init__(self, parent, fields):
+        self.parent = parent
+        self.fields = fields
+
+    def __iter__(self):
+        results = list(self.parent)
+        sort_by_fields(results, self.fields)
+        return iter(results)
+
+
 # Constructor for test functions that determine whether an object passes some boolean condition
 def test_exact(model, attribute_name, value):
     field = model._meta.get_field(attribute_name)
@@ -146,9 +157,7 @@ class FakeQuerySet(object):
             ]
 
     def order_by(self, *fields):
-        results = self.results[:]  # make a copy of results
-        sort_by_fields(results, fields)
-        return FakeQuerySet(self.model, results)
+        return FakeQuerySet(self.model, SortedResults(self._results, fields))
 
     def __getitem__(self, k):
         return self.results[k]
