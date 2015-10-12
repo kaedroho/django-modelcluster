@@ -19,10 +19,11 @@ class BaseResults(Results):
 
 
 class FilteredResults(Results):
-    def __init__(self, parent, model, filters):
+    def __init__(self, parent, model, filters, negate=False):
         self.parent = parent
         self.model = model
         self._filters = filters
+        self.negate = negate
 
     @cached_property
     def filters(self):
@@ -38,7 +39,7 @@ class FilteredResults(Results):
         return filters
 
     def match(self, result):
-        return all([test(result) for test in self.filters])
+        return all([test(result) for test in self.filters]) ^ self.negate
 
     def __iter__(self):
         for result in self.parent:
@@ -99,6 +100,9 @@ class FakeQuerySet(object):
 
     def filter(self, **kwargs):
         return FakeQuerySet(self.model, FilteredResults(self._results, self.model, kwargs))
+
+    def exclude(self, **kwargs):
+        return FakeQuerySet(self.model, FilteredResults(self._results, self.model, kwargs, negate=True))
 
     def get(self, **kwargs):
         results = self.filter(**kwargs)
